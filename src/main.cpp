@@ -19,7 +19,80 @@ using std::sin;
 using std::cos;
 using std::pow;
 using std::sqrt;
+using std::exp;
+using std::cout;
+using std::endl;
 
+//////////////////////////////////////////////////////////////////////////////////////////
+// my cost function
+// lane_info [speed, distance]
+double calculate_cost(vector<vector<double>> lane_info, double vehicle_speed){
+
+  double final_cost = 0; 
+  for(int i = 0; i < lane_info.size(); i++){
+    double this_cost;
+    double spd_diff = vehicle_speed - lane_info[i][0];
+    if(lane_info[i][1] > 5){  // the vehicle is ahead of us
+      if(spd_diff < 0){  // if we are slower than the vehicle ahead
+        this_cost = 0;
+      }else{
+        this_cost = 1 - exp(-1*(spd_diff)/lane_info[i][1]);  // lane_info[i][1] > 0
+      }
+    }else if(lane_info[i][1] < -8){ // the vehicle is behind of us
+      if(spd_diff > 0){  // if we are faster than the vehicle behind
+        this_cost = 0;
+      }else{
+        this_cost = 1 - exp(-1*(spd_diff)/lane_info[i][1]);  // lane_info[i][1] < 0
+      }
+    }else{  // the vehicle is parallel to us
+      return 1; 
+    }
+    if(this_cost > final_cost){
+      final_cost = this_cost;
+    }
+  }
+  return final_cost;
+}
+
+// evaluate the cost of five state 1.LCL, 2.PLCL, 3.keep, 4.PLCR, 5.LCR
+// state is only 3 lanes here
+int evaluate_action(int state, vector<vector<double>> left_lane_info, vector<vector<double>> right_lane_info,
+                    vector<vector<double>> this_lane_info, double vehicle_speed){
+  double min_cost = 1;
+  int target_state = 1;
+  for(int i = state - 1; i <= state + 1; i++){
+    double this_cost = 0;
+    if(i < 0){
+      continue;
+    }else if(i > 2){
+      continue;
+    }else{
+      if(i == state){
+        this_cost = calculate_cost(this_lane_info, vehicle_speed) * 0.8;
+        // cout << "Cost for this lane:" << this_cost << endl;
+      }else if(i == state - 1){
+        this_cost = calculate_cost(left_lane_info, vehicle_speed);
+        // cout << "Cost for left lane:" << this_cost << endl;
+      }else{
+        this_cost = calculate_cost(right_lane_info, vehicle_speed);
+        // cout << "Cost for right lane:" << this_cost << endl;
+      }
+    }
+    if(this_cost < min_cost){
+      min_cost = this_cost;
+      target_state = i;
+    }
+  }
+  return target_state;
+}
+
+void execuate_action(int target_state, int &lane){
+  if(target_state == lane - 1){
+    lane--;
+  }else if(target_state == lane + 1){
+    lane++;
+  }
+}
 
 int main() {
   uWS::Hub h;
@@ -60,7 +133,7 @@ int main() {
   //////////////////////////// my variables
   int lane = 1;  // lane number
   double ref_vel = 0.0;  // reference velocity in mph, start from 0
-  
+  int state = 3;  // 1.LCL, 2.PLCL, 3.keep, 4.PLCR, 5.LCR
 
   h.onMessage([&map_waypoints_x, &map_waypoints_y, &map_waypoints_s,
                &map_waypoints_dx, &map_waypoints_dy, &ref_vel, &lane]
@@ -118,39 +191,61 @@ int main() {
           }
 
           bool too_close = false;
+          // traffic info based on sensor fusion
+          vector<vector<double>> left_lane_info;
+          vector<vector<double>> this_lane_info;
+          vector<vector<double>> right_lane_info;
 
           // find ref_v to use
           for(int i=0; i < sensor_fusion.size(); i++){
             // cat is in my lane
-            double d = sensor_fusion[i][6];
+            double d = sensor_fusion[i][6];   // fernet d value
+            double vx = sensor_fusion[i][3];  // x, y velocity of the vehicle
+            double vy = sensor_fusion[i][4];
+            double check_speed = sqrt(pow(vx, 2) + pow(vy, 2));  // over all velocity 
+            double check_car_s = sensor_fusion[i][5];  // the vehicle's fernet s value
+            double distance = check_car_s - car_s;
+            check_car_s += ((double)prev_size * 0.02 * check_speed);
+            // check the vehicle ahead
             if(d < (2 + 4 * lane + 2) && d > (2 + 4 * lane - 2)){
-
-              double vx = sensor_fusion[i][3];
-              double vy = sensor_fusion[i][4];
-              double check_speed = sqrt(pow(vx, 2) + pow(vy, 2));
-              double check_car_s = sensor_fusion[i][5];
-
-              check_car_s += ((double)prev_size * 0.02 * check_speed);
               // check_s values greater than mine and s gap (30 m)
               // if the vehicle is in front and distance less than 30m
-              if((check_car_s > car_s) && ((check_car_s - car_s) < 30)){
-                
+              if((distance > -10) && (distance < 30)){
                 //ref_vel = 29.5; // mph
                 too_close = true;
-                if(lane > 0){
-                  lane = 0;
-                }
+                this_lane_info.push_back({check_speed, distance});
               }
-
+            }else if(lane != 0 && d < (2 + 4 * (lane - 1) + 2) 
+            && d > (2 + 4 * (lane - 1) - 2)){ // check the left lane if vehicle not in left most
+              if((distance > -10) && ((distance) < 30)){
+                left_lane_info.push_back({check_speed, distance});
+              }
+            }else if(lane != 2 && d < (2 + 4 * (lane + 1) + 2) 
+            && d > (2 + 4 * (lane + 1) - 2)){ // check the left lane if vehicle not in right most
+              if((distance > -10) && ((distance) < 30)){
+                cout << "Sensed Vehicle in right Lane ID: " <<  sensor_fusion[i][0] << endl;
+                if(distance < 0){
+                  cout << "In behind" << endl;
+                }
+                right_lane_info.push_back({check_speed, distance});
+              }
             }
           }
           
+          // after sensor fusion 
+          int target_state = evaluate_action(lane, left_lane_info, right_lane_info, this_lane_info, ref_vel);
+          execuate_action(target_state, lane);
+
+          /**
           if(too_close){
-            ref_vel -= 0.224;  // acceleration will be 5 m/s^2 
+            //ref_vel -= 0.224;  // acceleration will be 5 m/s^2 
           }else if(ref_vel < 49.5){
             ref_vel += 0.224;
           }
-          
+          */
+          if(ref_vel < 49.5){
+            ref_vel += 0.224;
+          }
           
           // Lane Following part
           // a lsit of spaced x,y points for spline
@@ -188,6 +283,7 @@ int main() {
 
           // create 3 points with 30m between two on Frenet corrdinate
           int dist = 30;  // the distance for spline anker points
+          // getXY: get the x, y coordinates of map based on vehicle s, d info
           vector<double> next_wp0 = getXY(car_s + dist, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
           vector<double> next_wp1 = getXY(car_s + 2*dist, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
           vector<double> next_wp2 = getXY(car_s + 3*dist, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
