@@ -23,6 +23,14 @@ using std::exp;
 using std::cout;
 using std::endl;
 
+struct Vehicle{
+  int ID;
+  bool parallel;
+  Vehicle( int i, bool p){
+    ID = i;
+    parallel = p;
+  }
+};
 //////////////////////////////////////////////////////////////////////////////////////////
 // my cost function
 // lane_info [speed, distance]
@@ -56,11 +64,11 @@ double calculate_cost(vector<vector<double>> lane_info, double vehicle_speed){
 
 // evaluate the cost of five state 1.LCL, 2.PLCL, 3.keep, 4.PLCR, 5.LCR
 // state is only 3 lanes here
-int evaluate_action(int state, vector<vector<double>> left_lane_info, vector<vector<double>> right_lane_info,
+int evaluate_action(vector<vector<double>> left_lane_info, vector<vector<double>> right_lane_info,
                     vector<vector<double>> this_lane_info, double vehicle_speed){
   double min_cost = 1;
   int target_state = 1;
-  for(int i = state - 1; i <= state + 1; i++){
+  for(int i = 0; i < 3; i++){
     double this_cost = 0;
     if(i < 0){
       continue;
@@ -68,7 +76,7 @@ int evaluate_action(int state, vector<vector<double>> left_lane_info, vector<vec
       continue;
     }else{
       if(i == state){
-        this_cost = calculate_cost(this_lane_info, vehicle_speed) * 0.8;
+        this_cost = calculate_cost(this_lane_info, vehicle_speed) - 0.05;
         // cout << "Cost for this lane:" << this_cost << endl;
       }else if(i == state - 1){
         this_cost = calculate_cost(left_lane_info, vehicle_speed);
@@ -91,6 +99,12 @@ void execuate_action(int target_state, int &lane){
     lane--;
   }else if(target_state == lane + 1){
     lane++;
+  }
+}
+
+void checkParallel(int vehicleID, double distance, vector<int> thisLane){
+  for(int i=0; i < thisLane.size(); i++){
+    continue;
   }
 }
 
@@ -134,6 +148,11 @@ int main() {
   int lane = 1;  // lane number
   double ref_vel = 0.0;  // reference velocity in mph, start from 0
   int state = 3;  // 1.LCL, 2.PLCL, 3.keep, 4.PLCR, 5.LCR
+  double lane_width = 4.0;
+  // a vector to store the left parallel vehicle, due to the sensor fusion unable to detect close vehicles
+  vector<vector<int>> lane_parallel {{}, {}, {}};
+  // vector<Vehicle> lane1_parallel;
+  // vector<Vehicle> lane2_parallel;
 
   h.onMessage([&map_waypoints_x, &map_waypoints_y, &map_waypoints_s,
                &map_waypoints_dx, &map_waypoints_dy, &ref_vel, &lane]
@@ -192,9 +211,9 @@ int main() {
 
           bool too_close = false;
           // traffic info based on sensor fusion
-          vector<vector<double>> left_lane_info;
-          vector<vector<double>> this_lane_info;
-          vector<vector<double>> right_lane_info;
+          vector<vector<vector<double>>> lane_info {{}, {}, {}};
+          //vector<vector<double>> this_lane_info;
+          //vector<vector<double>> right_lane_info;
 
           // find ref_v to use
           for(int i=0; i < sensor_fusion.size(); i++){
@@ -215,19 +234,19 @@ int main() {
                 too_close = true;
                 this_lane_info.push_back({check_speed, distance});
               }
-            }else if(lane != 0 && d < (2 + 4 * (lane - 1) + 2) 
-            && d > (2 + 4 * (lane - 1) - 2)){ // check the left lane if vehicle not in left most
+            }
+
+            if(d < lane_width && d >= 0){ // cehck lane 0
               if((distance > -10) && ((distance) < 30)){
-                left_lane_info.push_back({check_speed, distance});
+                lane_info[0].push_back({check_speed, distance});
               }
-            }else if(lane != 2 && d < (2 + 4 * (lane + 1) + 2) 
-            && d > (2 + 4 * (lane + 1) - 2)){ // check the left lane if vehicle not in right most
+            }else if(d < lane_width * 2 && d >= lane_width){ // check the lane 1
               if((distance > -10) && ((distance) < 30)){
-                cout << "Sensed Vehicle in right Lane ID: " <<  sensor_fusion[i][0] << endl;
-                if(distance < 0){
-                  cout << "In behind" << endl;
-                }
-                right_lane_info.push_back({check_speed, distance});
+                lane_info[1].push_back({check_speed, distance});
+              }
+            }else if(d <= lane_width * 3 && d >= lane_width * 2){ // check lane 2
+              if((distance > -10) && ((distance) < 30)){
+                lane_info[2].push_back({check_speed, distance});
               }
             }
           }
