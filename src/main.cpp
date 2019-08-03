@@ -43,10 +43,10 @@ double calculate_cost(vector<vector<double>> this_lane_info, double mySpeed){
       if(spd_diff < 0){  // if we are slower than the vehicle ahead
         this_cost = 0;
       }else{
-        this_cost = 1 - exp(-0.45*(spd_diff)/this_lane_info[i][1]);  // this_lane_info[i][1] > 0
+        this_cost = 1 - exp(-2*(spd_diff)/this_lane_info[i][1]);  // this_lane_info[i][1] > 0
       }
     }
-    /**
+    
     else if(this_lane_info[i][1] < 0){ // the vehicle is behind of us
       if(spd_diff > 0){  // if we are faster than the vehicle behind
         this_cost = 0;
@@ -54,7 +54,7 @@ double calculate_cost(vector<vector<double>> this_lane_info, double mySpeed){
         this_cost = 1 - exp(-1*(spd_diff)/this_lane_info[i][1]);  // this_lane_info[i][1] < 0
       }
     }
-    */
+    
     if(this_cost > final_cost){
       final_cost = this_cost;
     }
@@ -98,13 +98,13 @@ void vehicle_update_measurement(int vehicleID, double distance, double thisVehic
     }
   }
   if(exist){
-    if(distance > 25 || distance < -10){
+    if(distance > 40 || distance < -20){
       thisLane.erase(thisLane.begin() + pos);
     }else{
       thisLane[pos] = {(double)vehicleID, distance, thisVehicleSpeed, 1.0};
     }
   }else{
-    if(distance < 25 && distance > -10){
+    if(distance < 40 && distance > -20){
       thisLane.push_back({(double)vehicleID, distance, thisVehicleSpeed, 1.0});
     }
   }
