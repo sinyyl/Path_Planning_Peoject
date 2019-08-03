@@ -136,7 +136,7 @@ void execute(vector<double> costs, int &lane){
     }
     // if it has to go across 2 lanes
     if(abs(minLane - lane)==2){
-      if(!(costs[1] > 0.80)){  // if the mid lane is safe
+      if(!(costs[1] > 0.75)){  // if the mid lane is safe
         lane = 1;  // go into the mid lane first
       }
     }else{
