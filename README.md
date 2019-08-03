@@ -57,7 +57,7 @@ the path has processed since last time.
 
 #### Sensor Fusion Data, a list of all other car's attributes on the same side of the road. (No Noise)
 
-["sensor_fusion"] A 2d vector of cars and then that car's [car's unique ID, car's x position in map coordinates, car's y position in map coordinates, car's x velocity in m/s, car's y velocity in m/s, car's s position in frenet coordinates, car's d position in frenet coordinates. 
+["sensor_fusion"] A 2d vector of cars and then that car's [car's unique ID, car's x position in map coordinates, car's y position in map coordinates, car's x velocity in m/s, car's y velocity in m/s, car's s position in frenet coordinates, car's d position in frenet coordinates. However, this sensor fusion data is flawed. When the vehicle is close to ego evhicle(roughly < 20m), it could not sense the vehicle. Also, the sensed data has a offset of about 18m. The sensed distance is 18m behind the actual. So this distance need to be compensated. 
 
 ## Details
 
@@ -69,6 +69,11 @@ the path has processed since last time.
 
 A really helpful resource for doing this project and creating smooth trajectories was using http://kluge.in-chemnitz.de/opensource/spline/, the spline function is in a single hearder file is really easy to use.
 
+## Model Documentation
+The path planning algorithm uses a cost function approach. A list of vehicle positions can be estabished, based on the sensor fusion data. Due to the flaws in sensor fusion module, sometimes the vehicles need to be predicated based on the previous situation. To avoid the vehicle getting into harmful positions.
+Using the cost function, the cost of all 3 lanes can be evaluated. Rather than just look at the vehicle's left/right, this approach can let the vehicle get into the lane that is 2 lanes across, despite the next next to the current lane might have a higher cost. Of course, that is if it is safe to go across the middle lane. Also, to reward the vehicle to stay in the current lane if the cost for the 3 lanes are the same(usually when all are 0), I subtract a small number on the cost for current lane. To encourage the vehicle not to go across 2 lanes if not necessary, I add a small number to the lanes that is 2 lanes across.
+Despite of the best effort to stay in the fastest lane, ther are still situations that the road is completely blocked. Then the break will be engaged, and the vehicle will reduce the speed for now while seeking the opportunity to get out of the block.
+Althrough the program is not simple, the logic behind need a lot of thinking, the program is still primitive for the situation. Every about 6 to 8 miles, there will appear a situation that the program is not able to handle thus causing an accident.
 ---
 
 ## Dependencies

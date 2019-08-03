@@ -30,8 +30,6 @@ using std::endl;
 // my cost function
 // this_lane_info ==> [ID, distance, speed, updated], [...], ...
 double calculate_cost(vector<vector<double>> this_lane_info, double mySpeed){
-
-
   double final_cost = 0; 
   for(int i = 0; i < this_lane_info.size(); i++){
     double this_cost;
@@ -43,7 +41,7 @@ double calculate_cost(vector<vector<double>> this_lane_info, double mySpeed){
       if(spd_diff < 0){  // if we are slower than the vehicle ahead
         this_cost = 0;
       }else{
-        this_cost = 1 - exp(-2*(spd_diff)/this_lane_info[i][1]);  // this_lane_info[i][1] > 0
+        this_cost = 1 - exp(-0.65*(spd_diff)/this_lane_info[i][1]);  // this_lane_info[i][1] > 0
       }
     }
     
@@ -51,10 +49,10 @@ double calculate_cost(vector<vector<double>> this_lane_info, double mySpeed){
       if(spd_diff > 0){  // if we are faster than the vehicle behind
         this_cost = 0;
       }else{
-        this_cost = 1 - exp(-1*(spd_diff)/this_lane_info[i][1]);  // this_lane_info[i][1] < 0
+        this_cost = 1 - exp(-1.5*(spd_diff)/this_lane_info[i][1]);  // this_lane_info[i][1] < 0
       }
     }
-    
+    // choose only the highest vehicle cost as the cost for the lane
     if(this_cost > final_cost){
       final_cost = this_cost;
     }
@@ -62,34 +60,33 @@ double calculate_cost(vector<vector<double>> this_lane_info, double mySpeed){
   return final_cost;
 }
 
-// evaluate the cost of five state 1.LCL, 2.PLCL, 3.keep, 4.PLCR, 5.LCR
-// state is only 3 lanes here
+// evaluate the cost of 3 lanes
 vector<double> evaluate_lane(int lane, vector<vector<vector<double>>> lane_info, double mySpeed){
-
-
   vector<double> costs {0.0, 0.0, 0.0};  // cost for 3 lanes
   for(int i = 0; i < lane_info.size(); i++){
     double this_cost = 0;
     this_cost = calculate_cost(lane_info[i], mySpeed);
     if(i == lane){
       this_cost -= 0.05;  // reward for stay in the lane
-      // cout << "Cost for this lane:" << this_cost << endl;
     }else if(abs(lane - i) == 2){
       this_cost += 0.1;  // penalize for go across 2 lanes
     }
-    cout << "Cost for lane " << i << " is " << this_cost << endl;
+    // print out for debug
+    //cout << "Cost for lane " << i << " is " << this_cost << endl;
 
     costs[i] = this_cost;
   }
-  cout << "\n" << endl;
+  //cout << "\n" << endl;
   return costs;
 }
 
+// this function takes the data from sensor fusion and updates the measurement for the vehicle in the lanes
 // lane_info[j] ==> [ID, distance, speed, updated]
 void vehicle_update_measurement(int vehicleID, double distance, double thisVehicleSpeed, 
                                 double  mySpeed, vector<vector<double>> &thisLane){
   bool exist = false;
   int pos = -1;
+  // check if the sensed vehicle is in the database
   for(int i=0; i<thisLane.size(); i++){
     if(thisLane[i][0] == (double)vehicleID){
       exist = true;
@@ -97,18 +94,22 @@ void vehicle_update_measurement(int vehicleID, double distance, double thisVehic
       break;
     }
   }
+  // if it exists
   if(exist){
-    if(distance > 40 || distance < -20){
+    if(distance > 40 || distance < -20){  // remove the vehicle from database when its too far
       thisLane.erase(thisLane.begin() + pos);
     }else{
-      thisLane[pos] = {(double)vehicleID, distance, thisVehicleSpeed, 1.0};
+      thisLane[pos] = {(double)vehicleID, distance, thisVehicleSpeed, 1.0};  // update the measurement 
     }
   }else{
     if(distance < 40 && distance > -20){
-      thisLane.push_back({(double)vehicleID, distance, thisVehicleSpeed, 1.0});
+      // add the vehicle into database when its not in database and within range
+      thisLane.push_back({(double)vehicleID, distance, thisVehicleSpeed, 1.0});   
     }
   }
 }
+
+// this function predicts the position of the currently unseen vehicle by sensor fusion but still around the ego vehicle
 // lane_info ==> [lane0, lane1, lane2]; lane0 ==> [ID, distance, speed, updated],[...],...
 void vehicle_update_prediction(vector<vector<vector<double>>> &lane_info, double mySpeed, double time){
   // update the vehicle in all 3 lanes;
@@ -127,15 +128,20 @@ void vehicle_update_prediction(vector<vector<vector<double>>> &lane_info, double
 void execute(vector<double> costs, int &lane){
   double minCost = 2.0;
   int minLane;
-   for(int i=0; i<costs.size(); i++){
-    if(costs[i] < minCost){
-      minCost = costs[i];
-      minLane = i;
+    for(int i=0; i<costs.size(); i++){
+      if(costs[i] < minCost){
+        minCost = costs[i];
+        minLane = i;
+      }
     }
-   }
-   if(abs(minLane - lane)==1 || !(costs[1] > 0.80)){
-     lane = minLane;
-   }
+    // if it has to go across 2 lanes
+    if(abs(minLane - lane)==2){
+      if(!(costs[1] > 0.80)){  // if the mid lane is safe
+        lane = 1;  // go into the mid lane first
+      }
+    }else{
+      lane = minLane;
+    }
 }
 
 int main() {
@@ -264,19 +270,11 @@ int main() {
               j = 1;
             }else if(d <= lane_width * 3 && d >= lane_width * 2){ // check lane 2
               j = 2;
-              //cout << "Vehicle ID " << sensor_fusion[i][0] << " in Lane " << j << " is " << distance << " away." << endl;
             }
-            if(j != -1){ //&& (distance > -25) && ((distance) < 40)){
+            if(j != -1){
               vehicle_update_measurement(sensor_fusion[i][0], distance, check_speed, ref_vel, lane_info[j]);
             }
-
-            if(distance > -30 && distance < 30){
-              //cout << "Vehicle ID " << sensor_fusion[i][0] << " in Lane " << j << " is " << distance << " away." << endl;
-              
-            }
-
           }
-          //cout << "\n" << endl;
           
           // after sensor fusion 
           // checking the time difference
@@ -285,15 +283,16 @@ int main() {
           // predict the currently unseen vehicles
           vehicle_update_prediction(lane_info, ref_vel, time);
           begin = std::chrono::steady_clock::now();
-
-          vector<double> costs = evaluate_lane(lane, lane_info, ref_vel);
-          execute(costs, lane);
-
-
           
+          // evaluates the cost of 3 lanes
+          vector<double> costs = evaluate_lane(lane, lane_info, ref_vel);
+          execute(costs, lane);  // takes the cost of 3 lanes and make a lane change decision
+
+
+          // break/accelerate command
           if(too_close){
             ref_vel -= 0.224;  // acceleration will be 5 m/s^2 
-          }else if(ref_vel < 49.5){
+          }else if(ref_vel < 48.5){
             ref_vel += 0.224;
           }
           
@@ -372,7 +371,7 @@ int main() {
           }
 
           // make the vehicle to go at the desired speed
-          double target_x = 30.0;
+          double target_x = 40.0;
           double target_y = sp(target_x);
           double target_dist = sqrt(pow(target_x, 2) + pow(target_y, 2));
 
