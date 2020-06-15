@@ -74,7 +74,7 @@ The path planning algorithm uses a cost function approach. A list of vehicle pos
 Using the cost function, the cost of all 3 lanes can be evaluated. Rather than just look at the vehicle's left/right, this approach can let the vehicle get into the lane that is 2 lanes across, despite the next next to the current lane might have a higher cost. Of course, that is if it is safe to go across the middle lane. Also, to reward the vehicle to stay in the current lane if the cost for the 3 lanes are the same(usually when all are 0), I subtract a small number on the cost for current lane. To encourage the vehicle not to go across 2 lanes if not necessary, I add a small number to the lanes that is 2 lanes across.
 Despite of the best effort to stay in the fastest lane, ther are still situations that the road is completely blocked. Then the break will be engaged, and the vehicle will reduce the speed for now while seeking the opportunity to get out of the block.
 Althrough the program is not simple, the logic behind need a lot of thinking, the program is still primitive for the situation. Every about 6 to 8 miles, there will appear a situation that the program is not able to handle thus causing an accident.
----
+
 
 ## Dependencies
 
